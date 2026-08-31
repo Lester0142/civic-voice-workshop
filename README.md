@@ -26,7 +26,7 @@ The API runs at [http://localhost:3001](http://localhost:3001). Workshop data is
 
 When you change server-side code, stop and rerun the same `npm run dev` command. Client-side changes reload automatically.
 
-Participant branch and MR / PR naming is defined in [CONTRIBUTING.md](CONTRIBUTING.md). Facilitators can monitor forks and local app instances with [workshop/FACILITATOR.md](workshop/FACILITATOR.md).
+Start with the [documentation index](docs/README.md). Participant branch and draft PR rules are in [participant workflow](docs/workshop/participant-workflow.md); facilitators can monitor forks and local app instances with the [dashboard guide](docs/workshop/facilitator-dashboard.md).
 
 ## Useful commands
 

@@ -13,7 +13,19 @@ const repoRoot = path.resolve(here, "..");
 const configPath = path.resolve(repoRoot, process.env.FACILITATOR_CONFIG ?? "facilitator/participants.json");
 const cloneRoot = path.resolve(repoRoot, ".workshop/forks");
 const children = new Map();
-const state = { startedAt: new Date().toISOString(), lastRefresh: null, participants: [], error: null };
+const state = { startedAt: new Date().toISOString(), lastRefresh: null, participants: [], error: null, simulationTick: 0 };
+const sizePoints = { S: 1, M: 2, L: 3 };
+const ticketMeta = await loadTicketMeta();
+const ticketPoints = Object.fromEntries(Object.entries(ticketMeta).map(([key, value]) => [key, value.points]));
+
+async function loadTicketMeta() {
+  const tickets = await readFile(path.join(repoRoot, "workshop", "TICKETS.md"), "utf8");
+  const meta = {};
+  for (const match of tickets.matchAll(/^### (CV-\d{3}).*· ([SML])$/gm)) {
+    meta[match[1]] = { size: match[2], points: sizePoints[match[2]] };
+  }
+  return meta;
+}
 
 async function exists(file) {
   try { await access(file); return true; } catch { return false; }
@@ -57,7 +69,26 @@ async function ensureClone(participant) {
 }
 
 async function fetchMrs(config, participant) {
-  if (participant.mrs) return participant.mrs.map(normalizeMr);
+  if (participant.mrs) {
+    const visibleMrs = config.simulation?.enabled
+      ? participant.mrs
+        .filter((mr) => state.simulationTick >= (mr.startTick ?? 1))
+        .map((mr) => ({
+          ...mr,
+          simulationStatus: state.simulationTick >= (mr.mergeTick ?? Number.POSITIVE_INFINITY)
+            ? "merged"
+            : state.simulationTick === (mr.startTick ?? 1)
+              ? "draft"
+              : "open",
+        }))
+      : participant.mrs;
+    return visibleMrs.map((mr) => {
+      const normalized = normalizeMr(mr);
+      normalized.points = normalized.ticket ? ticketMeta[normalized.ticket.key]?.points ?? 1 : 0;
+      normalized.size = normalized.ticket ? ticketMeta[normalized.ticket.key]?.size ?? "S" : null;
+      return normalized;
+    });
+  }
   if (!config.baseRepo || !participant.forkRepo) return [];
   const headers = { Accept: "application/vnd.github+json", "User-Agent": "civic-voice-facilitator" };
   if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
@@ -66,7 +97,12 @@ async function fetchMrs(config, participant) {
   const pulls = await response.json();
   return pulls
     .filter((pull) => pull.head?.repo?.full_name === participant.forkRepo)
-    .map(normalizeMr);
+    .map((pull) => {
+      const normalized = normalizeMr(pull);
+      normalized.points = normalized.ticket ? ticketMeta[normalized.ticket.key]?.points ?? 1 : 0;
+      normalized.size = normalized.ticket ? ticketMeta[normalized.ticket.key]?.size ?? "S" : null;
+      return normalized;
+    });
 }
 
 async function ensureDependencies(config, target) {
@@ -106,7 +142,7 @@ async function syncParticipant(config, participant) {
     item.localPath = target;
     item.sha = sha;
     item.mrs = mrs;
-    item.summary = summarizeMrs(mrs);
+    item.summary = summarizeMrs(mrs, ticketPoints);
     if (config.autoStart && participant.trusted) {
       await ensureDependencies(config, target);
       startInstance(config, participant, target);
@@ -117,14 +153,16 @@ async function syncParticipant(config, participant) {
     item.status = "error";
     item.error = error.message;
     item.mrs = [];
-    item.summary = summarizeMrs([]);
+    item.summary = summarizeMrs([], ticketPoints);
   }
   return item;
 }
 
 async function refresh(config) {
+  if (config.simulation?.enabled) state.simulationTick += 1;
   state.participants = await Promise.all(config.participants.map((participant) => syncParticipant(config, participant)));
   state.lastRefresh = new Date().toISOString();
+  state.simulation = config.simulation?.enabled ? config.simulation : null;
   state.error = null;
 }
 
@@ -146,15 +184,16 @@ table{width:100%;border-collapse:collapse;overflow:hidden}th,td{text-align:left;
 @media(max-width:760px){.top{display:block}.cards{grid-template-columns:1fr}table,tbody,tr,td{display:block}thead{display:none}td{border:0;padding:8px 15px}tr{border-bottom:1px solid #eeeae2;display:block;padding:8px 0}}
 </style></head><body><main>
 <div class="top"><div><div class="eyebrow">Facilitator view</div><h1>CivicVoice workshop board</h1><p class="muted">Fork sync, MR progress, and local participant instances.</p></div><button class="button" onclick="refreshNow()">Refresh now</button></div>
-<div class="cards"><div class="card"><div class="muted">Participants</div><div class="value" id="participants">—</div></div><div class="card"><div class="muted">Merged tickets</div><div class="value" id="merged">—</div></div><div class="card"><div class="muted">In progress</div><div class="value" id="progress">—</div></div></div>
+<div class="cards"><div class="card"><div class="muted">Participants</div><div class="value" id="participants">—</div></div><div class="card"><div class="muted">Points awarded</div><div class="value" id="points">—</div></div><div class="card"><div class="muted">In progress</div><div class="value" id="progress">—</div></div></div>
 <p class="muted small" id="updated">Loading…</p>
-<table><thead><tr><th>Participant</th><th>Latest main</th><th>Completed</th><th>In progress</th><th>Instance</th><th>Sync</th></tr></thead><tbody id="rows"></tbody></table>
+<table><thead><tr><th>Rank</th><th>Participant</th><th>S · 1 pt</th><th>M · 2 pts</th><th>L · 3 pts</th><th>In progress</th><th>Score</th><th>Instance</th><th>Sync</th></tr></thead><tbody id="rows"></tbody></table>
 </main><script>
 function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function tags(items,status){return (items||[]).map(x=>'<span class="tag '+status+'">'+esc(x)+'</span>').join("")||"—"}
-async function load(){const s=await fetch("/api/state").then(r=>r.json());let merged=0,progress=0;document.getElementById("participants").textContent=s.participants.length;
-document.getElementById("rows").innerHTML=s.participants.map(p=>{merged+=p.summary?.counts?.merged||0;progress+=(p.summary?.counts?.open||0)+(p.summary?.counts?.draft||0);const app=p.instanceRunning?'<a class="button small" target="_blank" href="'+esc(p.appUrl)+'">Open app</a>':'—';return '<tr><td><div class="name">'+esc(p.name)+'</div><div class="muted small">'+esc(p.forkRepo)+'</div></td><td><code>'+esc(p.sha||"—")+'</code></td><td>'+tags(p.summary?.completed,"merged")+'</td><td>'+tags(p.summary?.inProgress,"open")+'</td><td>'+app+'</td><td class="'+(p.error?"error":"")+'">'+esc(p.error||p.status)+'</td></tr>'}).join("");
-document.getElementById("merged").textContent=merged;document.getElementById("progress").textContent=progress;document.getElementById("updated").textContent="Last refresh: "+(s.lastRefresh?new Date(s.lastRefresh).toLocaleTimeString():"starting");}
+function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;return '<span class="tag '+status+'">'+esc(label)+'</span>'}).join("")||"—"}
+async function load(){const s=await fetch("/api/state").then(r=>r.json());let points=0,progress=0;document.getElementById("participants").textContent=s.participants.length;
+const ranked=[...s.participants].sort((a,b)=>(b.summary?.points||0)-(a.summary?.points||0)||(b.summary?.counts?.merged||0)-(a.summary?.counts?.merged||0)||a.name.localeCompare(b.name));
+document.getElementById("rows").innerHTML=ranked.map((p,i)=>{points+=p.summary?.points||0;progress+=(p.summary?.counts?.open||0)+(p.summary?.counts?.draft||0);const app=p.instanceRunning?'<a class="button small" target="_blank" href="'+esc(p.appUrl)+'">Open app</a>':'—';return '<tr><td><div class="name">#'+(i+1)+'</div></td><td><div class="name">'+esc(p.name)+'</div><div class="muted small">'+esc(p.forkRepo)+'</div><div class="muted small"><code>'+esc(p.sha||"—")+'</code></div></td><td>'+tags(p.summary?.completedBySize?.S,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.M,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.L,"merged")+'</td><td>'+tags(p.summary?.inProgress,"open")+'</td><td><div class="name">'+esc(p.summary?.points||0)+' pts</div></td><td>'+app+'</td><td class="'+(p.error?"error":"")+'">'+esc(p.error||p.status)+'</td></tr>'}).join("");
+document.getElementById("points").textContent=points;document.getElementById("progress").textContent=progress;document.getElementById("updated").textContent=(s.simulation?"Simulation tick "+s.simulationTick+" · ":"")+"Last refresh: "+(s.lastRefresh?new Date(s.lastRefresh).toLocaleTimeString():"starting");}
 async function refreshNow(){await fetch("/api/refresh",{method:"POST"});load()} load();setInterval(load,5000);
 </script></body></html>`;
 

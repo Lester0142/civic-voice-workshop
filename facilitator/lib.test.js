@@ -23,7 +23,25 @@ describe("facilitator MR parsing", () => {
     expect(summarizeMrs(mrs)).toMatchObject({
       completed: ["CV-001"],
       inProgress: ["CV-002"],
-      totalPointsProxy: 1,
+      points: 1,
+    });
+  });
+
+  it("uses ticket weights for leaderboard points", () => {
+    const mrs = [
+      normalizeMr({ title: "CV-001: Small task", state: "closed", merged_at: "now" }),
+      normalizeMr({ title: "CV-017: Large task", state: "closed", merged_at: "now" }),
+    ];
+    expect(summarizeMrs(mrs, { "CV-001": 1, "CV-017": 3 }).points).toBe(4);
+  });
+
+  it("groups completed tickets into S, M, and L leaderboard columns", () => {
+    const small = { ...normalizeMr({ title: "CV-001: Small task", state: "closed", merged_at: "now" }), size: "S", points: 1 };
+    const large = { ...normalizeMr({ title: "CV-017: Large task", state: "closed", merged_at: "now" }), size: "L", points: 3 };
+    expect(summarizeMrs([small, large]).completedBySize).toEqual({
+      S: [{ key: "CV-001", points: 1 }],
+      M: [],
+      L: [{ key: "CV-017", points: 3 }],
     });
   });
 });
