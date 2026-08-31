@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, readFile, symlink } from "node:fs/promises";
+import { access, mkdir, readFile, rm, symlink } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -53,6 +53,52 @@ async function git(args, cwd) {
   return result.stdout.trim();
 }
 
+async function githubPage(apiPath) {
+  if (!process.env.GITHUB_TOKEN) {
+    try {
+      const result = await exec("gh", ["api", apiPath], { cwd: repoRoot, maxBuffer: 1024 * 1024 * 8 });
+      return JSON.parse(result.stdout);
+    } catch {
+      // Fall through to the public API when gh is unavailable or unauthenticated.
+    }
+  }
+  const headers = { Accept: "application/vnd.github+json", "User-Agent": "civic-voice-facilitator" };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const response = await fetch(`https://api.github.com${apiPath}`, { headers });
+  if (!response.ok) throw new Error(`GitHub API returned ${response.status}`);
+  return response.json();
+}
+
+async function githubList(apiPath) {
+  const items = [];
+  for (let page = 1; page <= 20; page += 1) {
+    const separator = apiPath.includes("?") ? "&" : "?";
+    const batch = await githubPage(`${apiPath}${separator}per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error("GitHub API did not return a list");
+    items.push(...batch);
+    if (batch.length < 100) break;
+  }
+  return items;
+}
+
+async function discoverParticipants(config) {
+  const configured = config.participants ?? [];
+  if (!config.discoverForks || !config.baseRepo) return configured;
+  const forks = await githubList(`/repos/${config.baseRepo}/forks?sort=newest`);
+  const configuredForks = new Set(configured.map((participant) => participant.forkRepo));
+  const discovered = forks
+    .filter((fork) => !configuredForks.has(fork.full_name))
+    .map((fork) => ({
+      id: cleanId(fork.owner.login.toLowerCase()),
+      name: fork.owner.login,
+      forkRepo: fork.full_name,
+      branch: fork.default_branch ?? "main",
+      trusted: false,
+      discovered: true,
+    }));
+  return [...configured, ...discovered];
+}
+
 async function ensureClone(participant) {
   const id = cleanId(participant.id);
   if (participant.directLocalRepo) {
@@ -69,6 +115,13 @@ async function ensureClone(participant) {
   if (!(await exists(path.join(target, ".git")))) {
     await git(["clone", "--branch", branch, "--single-branch", source, target], repoRoot);
   } else {
+    // Preview clones are disposable. If a participant commits the shared
+    // node_modules symlink, remove only our previously generated untracked
+    // dependency link so the incoming tracked path can be checked out.
+    const dependencyStatus = await git(["status", "--porcelain", "--", "node_modules"], target);
+    if (dependencyStatus.startsWith("?? node_modules")) {
+      await rm(path.join(target, "node_modules"), { recursive: true, force: true });
+    }
     await git(["fetch", "origin", branch], target);
     await git(["checkout", branch], target);
     await git(["pull", "--ff-only", "origin", branch], target);
@@ -99,11 +152,7 @@ async function fetchMrs(config, participant) {
     });
   }
   if (!config.baseRepo || !participant.forkRepo) return [];
-  const headers = { Accept: "application/vnd.github+json", "User-Agent": "civic-voice-facilitator" };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  const response = await fetch(`https://api.github.com/repos/${config.baseRepo}/pulls?state=all&per_page=100`, { headers });
-  if (!response.ok) throw new Error(`GitHub API returned ${response.status}`);
-  const pulls = await response.json();
+  const pulls = config.pullCache ?? await githubList(`/repos/${config.baseRepo}/pulls?state=all`);
   return pulls
     .filter((pull) => pull.head?.repo?.full_name === participant.forkRepo)
     .map((pull) => {
@@ -182,9 +231,14 @@ async function syncParticipant(config, participant) {
 }
 
 async function refresh(config) {
-  const liveConfig = config.participantsFile
+  const loadedConfig = config.participantsFile
     ? { ...config, ...(JSON.parse(await readFile(path.resolve(repoRoot, config.participantsFile), "utf8"))) }
     : config;
+  const participants = await discoverParticipants(loadedConfig);
+  const pullCache = loadedConfig.baseRepo && participants.some((participant) => !participant.mrs)
+    ? await githubList(`/repos/${loadedConfig.baseRepo}/pulls?state=all`)
+    : null;
+  const liveConfig = { ...loadedConfig, participants, pullCache };
   if (liveConfig.simulation?.enabled) state.simulationTick += 1;
   state.participants = await Promise.all(liveConfig.participants.map((participant) => syncParticipant(liveConfig, participant)));
   state.lastRefresh = new Date().toISOString();

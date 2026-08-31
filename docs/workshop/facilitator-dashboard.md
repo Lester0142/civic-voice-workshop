@@ -11,6 +11,14 @@ npm run facilitator
 
 Open [http://localhost:4200](http://localhost:4200).
 
+To discover every real GitHub fork automatically instead of maintaining a participant list:
+
+```bash
+FACILITATOR_CONFIG=facilitator/github-live.json npm run facilitator
+```
+
+This mode adds a row for each fork owner and reads PRs targeting the base repository. It uses your authenticated `gh` CLI when available, then falls back to the public GitHub API. Forks are read-only and never launched locally unless you explicitly add a trusted participant configuration.
+
 The board recognizes only PR titles that begin `CV-###:`. It treats:
 
 - draft PR as in progress;

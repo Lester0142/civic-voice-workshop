@@ -1,0 +1,8 @@
+{
+  "baseRepo": "ianho-oai/civic-voice-workshop",
+  "dashboardPort": 4200,
+  "pollSeconds": 20,
+  "discoverForks": true,
+  "autoStart": false,
+  "participants": []
+}
