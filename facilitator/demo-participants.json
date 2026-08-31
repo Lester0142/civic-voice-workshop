@@ -1,0 +1,7 @@
+{
+  "dashboardPort": 4200,
+  "pollSeconds": 10,
+  "autoStart": true,
+  "reuseDependenciesFrom": "node_modules",
+  "participants": []
+}

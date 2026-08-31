@@ -1,0 +1,17 @@
+{
+  "baseRepo": "ianho-oai/civic-voice-workshop",
+  "dashboardPort": 4200,
+  "pollSeconds": 20,
+  "autoStart": true,
+  "participants": [
+    {
+      "id": "alex",
+      "name": "Alex",
+      "forkRepo": "alex-gh-user/civic-voice-workshop",
+      "branch": "main",
+      "webPort": 5301,
+      "apiPort": 6301,
+      "trusted": true
+    }
+  ]
+}

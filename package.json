@@ -5,11 +5,13 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
-    "dev": "concurrently -n web,api -c cyan,magenta \"vite --host 0.0.0.0\" \"node server/index.js\"",
+    "dev": "node scripts/dev.js",
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "reset-db": "node server/reset-db.js"
+    "reset-db": "node server/reset-db.js",
+    "facilitator": "node facilitator/index.js",
+    "facilitator:demo": "FACILITATOR_CONFIG=facilitator/demo-participants.json node facilitator/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -34,6 +34,45 @@ Then test both demo accounts and reset the datastore with `npm run reset-db`.
 - For overlapping implementations, score the ticket whose acceptance checks are most fully met.
 - No real identity or personal data.
 
+## MR / PR convention
+
+Ask every participant to use one ticket per branch and one ticket per MR / GitHub pull request. The fixed title is:
+
+§§§text
+CV-003: Add feedback character count and limit
+§§§
+
+The §CV-###§ prefix must match §workshop/TICKETS.md§ exactly. See [CONTRIBUTING.md](../CONTRIBUTING.md) for branch, commit, body, and verification conventions. GitHub's own numeric PR ID is not the scoring identifier.
+
+## Live facilitator board
+
+The repository includes a local dashboard that can:
+
+- poll the upstream workshop repository for each configured fork's MRs / PRs;
+- score titles that follow §CV-###: ...§;
+- clone or fast-forward each participant fork's latest §main§ into ignored §.workshop/forks/§;
+- launch trusted participant versions on separate local web/API ports;
+- show completed and in-progress tickets with links to each local app.
+
+Copy and edit the configuration:
+
+§§§bash
+cp facilitator/participants.example.json facilitator/participants.json
+npm run facilitator
+§§§
+
+Open [http://localhost:4200](http://localhost:4200).
+
+Each participant entry needs a unique §id§, display §name§, public §forkRepo§, and unique §webPort§ / §apiPort§. Set §trusted: true§ only for workshop participants whose code you are comfortable executing locally. The board only launches instances when both §autoStart§ and §trusted§ are true.
+
+For private repositories or higher GitHub API limits, set §GITHUB_TOKEN§ in your shell before starting the board. Do not commit tokens. The board watches PRs opened from participant forks into §baseRepo§; it does not create, merge, or modify PRs.
+
+The synced clones are disposable facilitator-owned copies. The board may fast-forward those copies, so do not do manual work inside §.workshop/forks/§.
+
+## Local rehearsal mode
+
+§npm run facilitator:demo§ reads §facilitator/demo-participants.json§. It is intended for a safe local simulation with participant clones and fixture MR records; it does not contact or change GitHub.
+
 ## Suggested ticket menu by experience
 
 - First-time Codex users: CV-001, CV-003, CV-004, CV-006, CV-025, CV-026.

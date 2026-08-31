@@ -180,9 +180,44 @@ The inbox is cramped on small screens. Create a responsive layout without hiding
 
 Done: at 375px width, list rows, filters, and status controls remain usable without horizontal scrolling.
 
+## OpenAI API extensions
+
+These tickets are optional stretch work. Keep API keys server-side in an ignored §.env§ file, never in client code or Git, and make the non-AI baseline continue to work when no key is configured. Tests must mock API calls rather than spend credits.
+
+### CV-029 — Auto-categorize feedback · L
+
+Use an OpenAI API call on submission to choose §Estate§, §Transport§, §Environment§, or §Other§, with a deterministic fallback when the API is unavailable.
+
+Done: useful feedback is categorized, the category is stored, no key reaches the browser, and mocked tests cover success and fallback.
+
+### CV-030 — Summarize long feedback for admins · L
+
+Add a server endpoint that creates a one-sentence summary for feedback longer than 200 characters and display it in the admin detail view.
+
+Done: summaries are generated on demand, cached with the feedback item, and failure leaves the original feedback readable.
+
+### CV-031 — Read feedback aloud · M
+
+Add a text-to-speech action for the citizen confirmation screen using an OpenAI TTS API from the server.
+
+Done: a user can play/pause the generated audio, loading and failure states are clear, and audio is not generated for blank feedback.
+
+### CV-032 — Translate feedback for admins · L
+
+Let an admin request an English translation while preserving the original text and clearly labeling the translated copy.
+
+Done: non-English feedback can be translated on demand, the original is always visible, and mocked tests cover API failure.
+
+### CV-033 — Suggest urgency and routing · L
+
+Use structured model output to suggest §Low§, §Medium§, or §High§ urgency and a responsible team, while keeping the suggestion visibly reviewable by an admin.
+
+Done: suggestions never silently change status, malformed model output is rejected, and an admin can accept or dismiss the suggestion.
+
 ## Facilitator notes on dependencies
 
 - CV-005 makes CV-010 more meaningful.
 - CV-012 makes CV-013 more meaningful.
 - CV-017 and CV-018 are deliberately larger and best for experienced participants.
 - CV-023 and CV-024 are good “review and verification” tickets after a participant has changed behavior.
+- CV-029 through CV-033 need an OpenAI API key and are optional stretch tickets; pair them with explicit mock-based tests.

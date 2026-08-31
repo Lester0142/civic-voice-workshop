@@ -8,6 +8,8 @@ npm run dev
 
 Before changing behavior, read the relevant ticket in `workshop/TICKETS.md`. Keep identities fictional; never add real NRICs, secrets, or external services. Prefer a focused change with a test or a clear local verification step. Do not silently “fix” unrelated intentional rough edges because other participants may be working on them.
 
+For participant work, use the fixed branch, commit, and MR / PR conventions in `CONTRIBUTING.md`. The title must begin `CV-###:` with the exact ticket number.
+
 Useful checks:
 
 ```bash

@@ -3,3 +3,5 @@ dist/
 .DS_Store
 data/db.json
 coverage/
+.workshop/
+facilitator/participants.json
