@@ -124,8 +124,16 @@ async function ensureDependencies(config, target) {
   await exec("npm", ["install"], { cwd: target, maxBuffer: 1024 * 1024 * 8 });
 }
 
-function startInstance(config, participant, target) {
-  if (!config.autoStart || !participant.trusted || children.has(participant.id)) return;
+function startInstance(config, participant, target, sha) {
+  if (!config.autoStart || !participant.trusted) return;
+  const existing = children.get(participant.id);
+  if (existing?.sha === sha) return;
+  if (existing && existing.sha !== sha) {
+    existing.child.kill("SIGTERM");
+    children.delete(participant.id);
+    setTimeout(() => startInstance(config, participant, target, sha), 800);
+    return;
+  }
   const webPort = String(participant.webPort);
   const apiPort = String(participant.apiPort);
   const child = spawn("npm", ["run", "dev"], {
@@ -133,8 +141,10 @@ function startInstance(config, participant, target) {
     env: { ...process.env, WEB_PORT: webPort, PORT: apiPort, VITE_API_URL: `http://localhost:${apiPort}` },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  children.set(participant.id, child);
-  child.on("exit", () => children.delete(participant.id));
+  children.set(participant.id, { child, sha });
+  child.on("exit", () => {
+    if (children.get(participant.id)?.child === child) children.delete(participant.id);
+  });
 }
 
 async function syncParticipant(config, participant) {
@@ -158,7 +168,7 @@ async function syncParticipant(config, participant) {
     item.summary = summarizeMrs(mrs, ticketPoints);
     if (config.autoStart && participant.trusted) {
       await ensureDependencies(config, target);
-      startInstance(config, participant, target);
+      startInstance(config, participant, target, sha);
     }
     item.instanceRunning = children.has(participant.id);
     item.status = "ready";
@@ -236,7 +246,7 @@ server.listen(config.dashboardPort ?? 4200, () => {
 });
 
 function stop() {
-  for (const child of children.values()) child.kill("SIGTERM");
+  for (const entry of children.values()) entry.child.kill("SIGTERM");
   server.close(() => process.exit(0));
 }
 process.on("SIGINT", stop);
