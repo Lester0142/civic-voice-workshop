@@ -28,6 +28,10 @@ The dashboard only starts local apps when both `autoStart` and `trusted` are tru
 
 For private repositories or higher API limits, provide `GITHUB_TOKEN` in the shell. Never commit it.
 
+For a long-running local race, set `participantsFile` in the facilitator config. The board rereads that JSON manifest on every refresh, so an external runner can update MR states and scores without restarting the dashboard.
+
+Use `directLocalRepo` for trusted local participant clones that are already managed by a runner; the board reads their HEAD directly instead of making another disposable sync copy.
+
 ## Scoring
 
 Ticket size comes from `workshop/TICKETS.md`:

@@ -55,6 +55,10 @@ async function git(args, cwd) {
 
 async function ensureClone(participant) {
   const id = cleanId(participant.id);
+  if (participant.directLocalRepo) {
+    const target = path.resolve(repoRoot, participant.directLocalRepo);
+    return { target, sha: await git(["rev-parse", "--short", "HEAD"], target) };
+  }
   const target = path.join(cloneRoot, id);
   const branch = participant.branch ?? "main";
   const source = participant.localRepo
@@ -165,10 +169,13 @@ async function syncParticipant(config, participant) {
 }
 
 async function refresh(config) {
-  if (config.simulation?.enabled) state.simulationTick += 1;
-  state.participants = await Promise.all(config.participants.map((participant) => syncParticipant(config, participant)));
+  const liveConfig = config.participantsFile
+    ? { ...config, ...(JSON.parse(await readFile(path.resolve(repoRoot, config.participantsFile), "utf8"))) }
+    : config;
+  if (liveConfig.simulation?.enabled) state.simulationTick += 1;
+  state.participants = await Promise.all(liveConfig.participants.map((participant) => syncParticipant(liveConfig, participant)));
   state.lastRefresh = new Date().toISOString();
-  state.simulation = config.simulation?.enabled ? config.simulation : null;
+  state.simulation = liveConfig.simulation?.enabled ? liveConfig.simulation : null;
   state.error = null;
 }
 
