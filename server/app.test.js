@@ -13,6 +13,12 @@ async function testApp() {
 }
 
 describe("CivicVoice baseline API", () => {
+  it("creates a missing datastore directory on first use", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "civic-voice-"));
+    const db = await createDb(path.join(directory, "missing", "data", "db.json"));
+    expect(db.data.users).toHaveLength(2);
+  });
+
   it("logs in the seeded citizen", async () => {
     const app = await testApp();
     const response = await request(app).post("/api/login").send({
