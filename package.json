@@ -1,0 +1,29 @@
+{
+  "name": "civic-voice-workshop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"vite --host 0.0.0.0\" \"node server/index.js\"",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "reset-db": "node server/reset-db.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "lowdb": "^7.0.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "supertest": "^7.1.4",
+    "vite": "^7.1.3",
+    "vitest": "^3.2.4"
+  }
+}
