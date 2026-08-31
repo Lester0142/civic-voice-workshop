@@ -172,6 +172,8 @@ Done: indicator changes when the API is stopped and recovers without a full page
 
 Keep API keys server-side in an ignored `.env` file, never in client code or Git. The non-AI baseline must continue to work when no key is configured, and tests must mock API calls rather than spend credits.
 
+### Security foundations
+
 ### CV-017 — Replace the role header with real session checks · L
 
 The admin endpoint trusts `x-user-role`. Replace that with an opaque server-issued session token and middleware.
@@ -183,6 +185,8 @@ Done: a citizen cannot read the inbox by changing a request header; tests cover 
 Hash demo passwords and compare hashes during login while keeping the same workshop credentials.
 
 Done: no plain-text password exists in persisted user records; login tests still pass.
+
+### OpenAI API extensions
 
 ### CV-029 — Auto-categorize feedback · L
 

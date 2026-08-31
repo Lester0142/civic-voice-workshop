@@ -21,8 +21,12 @@ const ticketPoints = Object.fromEntries(Object.entries(ticketMeta).map(([key, va
 async function loadTicketMeta() {
   const tickets = await readFile(path.join(repoRoot, "workshop", "TICKETS.md"), "utf8");
   const meta = {};
-  for (const match of tickets.matchAll(/^### (CV-\d{3}).*· ([SML])$/gm)) {
-    meta[match[1]] = { size: match[2], points: sizePoints[match[2]] };
+  let openAI = false;
+  for (const line of tickets.split("\n")) {
+    if (line === "### Security foundations") openAI = false;
+    if (line === "### OpenAI API extensions") openAI = true;
+    const match = line.match(/^### (CV-\d{3}).*· ([SML])$/);
+    if (match) meta[match[1]] = { size: match[2], points: sizePoints[match[2]], openAI };
   }
   return meta;
 }
@@ -86,6 +90,7 @@ async function fetchMrs(config, participant) {
       const normalized = normalizeMr(mr);
       normalized.points = normalized.ticket ? ticketMeta[normalized.ticket.key]?.points ?? 1 : 0;
       normalized.size = normalized.ticket ? ticketMeta[normalized.ticket.key]?.size ?? "S" : null;
+      normalized.openAI = normalized.ticket ? Boolean(ticketMeta[normalized.ticket.key]?.openAI) : false;
       return normalized;
     });
   }
@@ -101,6 +106,7 @@ async function fetchMrs(config, participant) {
       const normalized = normalizeMr(pull);
       normalized.points = normalized.ticket ? ticketMeta[normalized.ticket.key]?.points ?? 1 : 0;
       normalized.size = normalized.ticket ? ticketMeta[normalized.ticket.key]?.size ?? "S" : null;
+      normalized.openAI = normalized.ticket ? Boolean(ticketMeta[normalized.ticket.key]?.openAI) : false;
       return normalized;
     });
 }
@@ -181,7 +187,7 @@ h1{font-size:44px;letter-spacing:-.05em;margin:8px 0}.eyebrow{color:#a91f25;font
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}.card,table{background:#fff;border:1px solid #e3dfd6;border-radius:12px}.card{padding:18px}.value{font-size:30px;font-weight:800}
 table{width:100%;min-width:1220px;border-collapse:collapse;overflow:hidden}th,td{text-align:left;padding:15px;border-bottom:1px solid #eeeae2;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:#68747b;letter-spacing:.08em}
 .score-cell,.instance-cell,.sync-cell{white-space:nowrap}.score-cell{min-width:86px}.instance-cell{min-width:112px}.sync-cell{min-width:72px}
-.name{font-weight:800}.tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef1f3;font-size:12px;margin:2px}.merged{background:#e6f4ea;color:#247238}.open,.draft{background:#fff1df;color:#9a5b00}.closed{background:#f3e8e8;color:#8f3131}.error{color:#a91f25}.small{font-size:12px}
+.name{font-weight:800}.tag{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px;border-radius:999px;background:#eef1f3;font-size:12px;margin:2px}.merged{background:#e6f4ea;color:#247238}.open,.draft{background:#fff1df;color:#9a5b00}.closed{background:#f3e8e8;color:#8f3131}.ai-mark{border-left:1px solid currentColor;padding-left:5px;color:#6b3fa0;font-weight:800;font-size:10px;letter-spacing:.04em}.error{color:#a91f25}.small{font-size:12px}
 @media(max-width:760px){.top{display:block}.cards{grid-template-columns:1fr}table,tbody,tr,td{display:block}thead{display:none}td{border:0;padding:8px 15px}tr{border-bottom:1px solid #eeeae2;display:block;padding:8px 0}}
 </style></head><body><main>
 <div class="top"><div><div class="eyebrow">Facilitator view</div><h1>CivicVoice workshop board</h1><p class="muted">Fork sync, MR progress, and local participant instances.</p></div><button class="button" onclick="refreshNow()">Refresh now</button></div>
@@ -190,10 +196,10 @@ table{width:100%;min-width:1220px;border-collapse:collapse;overflow:hidden}th,td
 <table><colgroup><col style="width:6%"><col style="width:17%"><col style="width:15%"><col style="width:20%"><col style="width:14%"><col style="width:12%"><col style="width:7%"><col style="width:6%"><col style="width:5%"></colgroup><thead><tr><th>Rank</th><th>Participant</th><th>S · 1 pt</th><th>M · 2 pts</th><th>L · 3 pts</th><th>In progress</th><th>Score</th><th>Instance</th><th>Sync</th></tr></thead><tbody id="rows"></tbody></table>
 </main><script>
 function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;return '<span class="tag '+status+'">'+esc(label)+'</span>'}).join("")||"—"}
+function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;const mark=typeof x==="object"&&x.openAI?'<span class="ai-mark">✦ AI</span>':"";return '<span class="tag '+status+'">'+esc(label)+mark+'</span>'}).join("")||"—"}
 async function load(){const s=await fetch("/api/state").then(r=>r.json());let points=0,progress=0;document.getElementById("participants").textContent=s.participants.length;
 const ranked=[...s.participants].sort((a,b)=>(b.summary?.points||0)-(a.summary?.points||0)||(b.summary?.counts?.merged||0)-(a.summary?.counts?.merged||0)||a.name.localeCompare(b.name));
-document.getElementById("rows").innerHTML=ranked.map((p,i)=>{points+=p.summary?.points||0;progress+=(p.summary?.counts?.open||0)+(p.summary?.counts?.draft||0);const app=p.instanceRunning?'<a class="button small" target="_blank" href="'+esc(p.appUrl)+'">Open app</a>':'—';return '<tr><td><div class="name">#'+(i+1)+'</div></td><td><div class="name">'+esc(p.name)+'</div><div class="muted small">'+esc(p.forkRepo)+'</div><div class="muted small"><code>'+esc(p.sha||"—")+'</code></div></td><td>'+tags(p.summary?.completedBySize?.S,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.M,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.L,"merged")+'</td><td>'+tags(p.summary?.inProgress,"open")+'</td><td class="score-cell"><div class="name">'+esc(p.summary?.points||0)+' pts</div></td><td class="instance-cell">'+app+'</td><td class="sync-cell '+(p.error?"error":"")+'">'+esc(p.error||p.status)+'</td></tr>'}).join("");
+document.getElementById("rows").innerHTML=ranked.map((p,i)=>{points+=p.summary?.points||0;progress+=(p.summary?.counts?.open||0)+(p.summary?.counts?.draft||0);const app=p.instanceRunning?'<a class="button small" target="_blank" href="'+esc(p.appUrl)+'">Open app</a>':'—';return '<tr><td><div class="name">#'+(i+1)+'</div></td><td><div class="name">'+esc(p.name)+'</div><div class="muted small">'+esc(p.forkRepo)+'</div><div class="muted small"><code>'+esc(p.sha||"—")+'</code></div></td><td>'+tags(p.summary?.completedBySize?.S,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.M,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.L,"merged")+'</td><td>'+tags(p.summary?.inProgressDetails,"open")+'</td><td class="score-cell"><div class="name">'+esc(p.summary?.points||0)+' pts</div></td><td class="instance-cell">'+app+'</td><td class="sync-cell '+(p.error?"error":"")+'">'+esc(p.error||p.status)+'</td></tr>'}).join("");
 document.getElementById("points").textContent=points;document.getElementById("progress").textContent=progress;document.getElementById("updated").textContent=(s.simulation?"Simulation tick "+s.simulationTick+" · ":"")+"Last refresh: "+(s.lastRefresh?new Date(s.lastRefresh).toLocaleTimeString():"starting");}
 async function refreshNow(){await fetch("/api/refresh",{method:"POST"});load()} load();setInterval(load,5000);
 </script></body></html>`;

@@ -39,9 +39,9 @@ describe("facilitator MR parsing", () => {
     const small = { ...normalizeMr({ title: "CV-001: Small task", state: "closed", merged_at: "now" }), size: "S", points: 1 };
     const large = { ...normalizeMr({ title: "CV-017: Large task", state: "closed", merged_at: "now" }), size: "L", points: 3 };
     expect(summarizeMrs([small, large]).completedBySize).toEqual({
-      S: [{ key: "CV-001", points: 1 }],
+      S: [{ key: "CV-001", points: 1, openAI: false }],
       M: [],
-      L: [{ key: "CV-017", points: 3 }],
+      L: [{ key: "CV-017", points: 3, openAI: false }],
     });
   });
 });

@@ -38,6 +38,7 @@ export function summarizeMrs(mrs = [], ticketPoints = {}) {
       completedBySize[size].push({
         key: mr.ticket.key,
         points: mr.points ?? ticketPoints[mr.ticket.key] ?? 1,
+        openAI: Boolean(mr.openAI),
       });
     }
   }
@@ -49,6 +50,9 @@ export function summarizeMrs(mrs = [], ticketPoints = {}) {
     completed: valid.filter((mr) => mr.status === "merged").map((mr) => mr.ticket.key),
     completedBySize,
     inProgress: valid.filter((mr) => mr.status === "open" || mr.status === "draft").map((mr) => mr.ticket.key),
+    inProgressDetails: valid
+      .filter((mr) => mr.status === "open" || mr.status === "draft")
+      .map((mr) => ({ key: mr.ticket.key, points: mr.points ?? ticketPoints[mr.ticket.key] ?? 1, openAI: Boolean(mr.openAI) })),
     points,
   };
 }
