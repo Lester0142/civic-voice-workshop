@@ -1,6 +1,19 @@
 # Participant workflow
 
-Each participant works from their own fork. Keep one ticket per branch and one ticket per merge request / GitHub pull request.
+Each participant works from their own **public** fork. Keep one ticket per branch and one ticket per merge request / GitHub pull request. The facilitator dashboard discovers public forks automatically; private forks will not appear.
+
+## Before your first ticket
+
+Fork [github.com/ianho-oai/civic-voice-workshop](https://github.com/ianho-oai/civic-voice-workshop) into your own GitHub account, keep the fork public, then clone and start it:
+
+```bash
+git clone https://github.com/<your-github-name>/civic-voice-workshop.git
+cd civic-voice-workshop
+npm install
+npm run dev
+```
+
+Replace `<your-github-name>` with your GitHub username. The app opens at [http://localhost:5173](http://localhost:5173). Use `S0000001A` / `citizen123` for the public flow or `S0000002B` / `admin123` for the admin flow.
 
 ## Start every ticket the same way
 
@@ -42,6 +55,13 @@ npm run build
 git add .
 git commit -m "CV-003 Add feedback character count and limit"
 git push -u origin cv-003-character-limit
+```
+
+Other available commands:
+
+```bash
+npm run test:watch # keep tests running while you edit
+npm run reset-db   # restore the original local data
 ```
 
 The dashboard can see pushed branches and PRs; it cannot see unpushed local work.

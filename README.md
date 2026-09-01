@@ -26,7 +26,7 @@ If it does not start with `v20` or higher, update Node before continuing.
 ### 2. Fork and clone your own copy
 
 1. Open [github.com/ianho-oai/civic-voice-workshop](https://github.com/ianho-oai/civic-voice-workshop).
-2. Click **Fork** and create the fork under your own GitHub account.
+2. Click **Fork** and create the fork under your own GitHub account. Keep the fork **public** so the facilitator dashboard can discover it and read your progress.
 3. Clone your fork, not the facilitator's repository:
 
 ```bash
@@ -35,7 +35,7 @@ cd civic-voice-workshop
 npm install
 ```
 
-Replace `<your-github-name>` with your GitHub username. Keep the default branch named `main`.
+Replace `<your-github-name>` with your GitHub username. Keep the repository public and keep the default branch named `main`. Private forks are not visible to the workshop leaderboard.
 
 ### 3. Run the starter app
 
@@ -114,13 +114,26 @@ Confirm the ticket's **Done** checks work locally, update the PR body with your 
 - **L** tickets are advanced security or OpenAI API work worth 3 points.
 - OpenAI API tickets are marked separately on the facilitator leaderboard.
 
-### Useful commands
+### Available commands
+
+| Command | When to use it |
+| --- | --- |
+| `npm install` | Install dependencies once after cloning. |
+| `npm run dev` | Run the web app and API together. This is the normal development command. |
+| `npm test` | Run the baseline test suite before marking a PR ready. |
+| `npm run test:watch` | Keep tests running while you edit. |
+| `npm run build` | Verify the production web build before marking a PR ready. |
+| `npm run reset-db` | Restore the original local workshop data. |
+| `npm run facilitator` | Start the facilitator dashboard with `facilitator/participants.json`. Facilitators only. |
+| `npm run facilitator:demo` | Start the dashboard with demo participants. Facilitators only. |
+
+The participant flow normally uses:
 
 ```bash
-npm run dev        # run web and API together
-npm test           # run the baseline test suite
-npm run build      # verify the web app builds
-npm run reset-db   # restore the original local workshop data
+npm install
+npm run dev
+npm test
+npm run build
 ```
 
 ### If something looks wrong
