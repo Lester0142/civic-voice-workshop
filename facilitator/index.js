@@ -164,6 +164,21 @@ async function fetchMrs(config, participant) {
     });
 }
 
+async function applyForkMainMerges(target, participant, mrs) {
+  const mainBranch = participant.branch ?? "main";
+  await Promise.all(mrs.map(async (mr) => {
+    if (mr.status === "merged" || !mr.headSha) return;
+    try {
+      await git(["merge-base", "--is-ancestor", mr.headSha, mainBranch], target);
+      mr.status = "merged";
+      mr.mergedIntoFork = true;
+    } catch {
+      // A non-zero result means this ticket commit is not in the fork's main.
+    }
+  }));
+  return mrs;
+}
+
 async function ensureDependencies(config, target) {
   if (await exists(path.join(target, "node_modules"))) return;
   if (config.reuseDependenciesFrom) {
@@ -211,6 +226,7 @@ async function syncParticipant(config, participant) {
   };
   try {
     const [{ target, sha }, mrs] = await Promise.all([ensureClone(participant), fetchMrs(config, participant)]);
+    await applyForkMainMerges(target, participant, mrs);
     item.localPath = target;
     item.sha = sha;
     item.mrs = mrs;

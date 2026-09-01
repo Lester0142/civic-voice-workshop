@@ -26,6 +26,8 @@ The board recognizes only PR titles that begin `CV-###:`. It treats:
 - merged PR as complete;
 - closed unmerged PR as stopped.
 
+For real fork discovery, completion is checked against each participant fork's `main`, not the facilitator repository. If a ticket branch commit is reachable from that fork's `main`, the board counts it as merged even when the PR targeting the facilitator repository was merely closed. A standardized `cv-###-...` branch can identify the ticket when the PR title is malformed, but participants should still use the required title format.
+
 Require participants to open a draft PR immediately and push often. GitHub cannot reveal unpushed local work.
 
 ## Configuration and trust

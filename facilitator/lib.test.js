@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMr, parseTicketTitle, summarizeMrs } from "./lib.js";
+import { normalizeMr, parseTicketBranch, parseTicketTitle, summarizeMrs } from "./lib.js";
 
 describe("facilitator MR parsing", () => {
   it("accepts the fixed ticket-title format", () => {
@@ -12,6 +12,24 @@ describe("facilitator MR parsing", () => {
 
   it("ignores titles without the fixed prefix", () => {
     expect(parseTicketTitle("Fix the character count")).toBeNull();
+  });
+
+  it("can identify a ticket from a standardized branch when the title is malformed", () => {
+    expect(parseTicketBranch("cv-003-character-limit")).toEqual({
+      key: "CV-003",
+      number: 3,
+      title: "",
+    });
+    const mr = normalizeMr({
+      title: "CV-003 Add feedback character count and limit",
+      state: "closed",
+      head: { ref: "cv-003-character-limit", sha: "abc123" },
+    });
+    expect(mr).toMatchObject({
+      ticket: { key: "CV-003", number: 3 },
+      headSha: "abc123",
+      titleCompliant: false,
+    });
   });
 
   it("summarizes merged and in-progress tickets", () => {
