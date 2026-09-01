@@ -3,6 +3,10 @@
   "dashboardPort": 4200,
   "pollSeconds": 20,
   "discoverForks": true,
+  "agentVerification": {
+    "enabled": true,
+    "maxConcurrent": 1
+  },
   "autoStart": false,
   "participants": []
 }

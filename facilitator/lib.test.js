@@ -57,9 +57,16 @@ describe("facilitator MR parsing", () => {
     const small = { ...normalizeMr({ title: "CV-001: Small task", state: "closed", merged_at: "now" }), size: "S", points: 1 };
     const large = { ...normalizeMr({ title: "CV-017: Large task", state: "closed", merged_at: "now" }), size: "L", points: 3 };
     expect(summarizeMrs([small, large]).completedBySize).toEqual({
-      S: [{ key: "CV-001", points: 1, openAI: false }],
+      S: [{ key: "CV-001", points: 1, openAI: false, agentVerified: false }],
       M: [],
-      L: [{ key: "CV-017", points: 3, openAI: false }],
+      L: [{ key: "CV-017", points: 3, openAI: false, agentVerified: false }],
     });
+  });
+
+  it("carries the persistent agent-verification flag into leaderboard pills", () => {
+    const verified = { ...normalizeMr({ title: "CV-003: Character limit", state: "closed", merged_at: "now" }), size: "S", points: 1, agentVerified: true };
+    expect(summarizeMrs([verified]).completedBySize.S).toEqual([
+      { key: "CV-003", points: 1, openAI: false, agentVerified: true },
+    ]);
   });
 });

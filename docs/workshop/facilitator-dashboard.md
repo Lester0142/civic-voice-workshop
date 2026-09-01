@@ -28,6 +28,8 @@ The board recognizes only PR titles that begin `CV-###:`. It treats:
 
 For real fork discovery, completion is checked against each participant fork's `main`, not the facilitator repository. If a ticket branch commit is reachable from that fork's `main`, the board counts it as merged even when the PR targeting the facilitator repository was merely closed. A standardized `cv-###-...` branch can identify the ticket when the PR title is malformed, but participants should still use the required title format.
 
+When `agentVerification.enabled` is true, the dashboard queues one read-only headless Codex verifier for each real MR commit. The verifier reviews the ticket and GitHub patch qualitatively without running participant code. A positive verdict adds a `✓` beside that ticket pill. Results are keyed to the exact fork, ticket, and head SHA in ignored local `.workshop/verification.json`, so a verified tick survives restarts forever; a new push gets a new review.
+
 Require participants to open a draft PR immediately and push often. GitHub cannot reveal unpushed local work.
 
 ## Configuration and trust

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, readFile, rm, symlink } from "node:fs/promises";
+import { access, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -12,11 +12,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 const configPath = path.resolve(repoRoot, process.env.FACILITATOR_CONFIG ?? "facilitator/participants.json");
 const cloneRoot = path.resolve(repoRoot, ".workshop/forks");
+const verificationPath = path.resolve(repoRoot, ".workshop/verification.json");
 const children = new Map();
 const state = { startedAt: new Date().toISOString(), lastRefresh: null, participants: [], error: null, simulationTick: 0 };
 const sizePoints = { S: 1, M: 2, L: 3 };
 const ticketMeta = await loadTicketMeta();
 const ticketPoints = Object.fromEntries(Object.entries(ticketMeta).map(([key, value]) => [key, value.points]));
+const verificationStore = await loadVerificationStore();
+const verificationQueue = [];
+const queuedVerificationKeys = new Set();
+let activeVerifications = 0;
+let verificationSave = Promise.resolve();
 
 async function loadTicketMeta() {
   const tickets = await readFile(path.join(repoRoot, "workshop", "TICKETS.md"), "utf8");
@@ -41,6 +47,26 @@ async function loadConfig() {
   } catch (error) {
     throw new Error(`Could not read ${path.relative(repoRoot, configPath)}. Copy facilitator/participants.example.json to facilitator/participants.json and edit it. ${error.message}`);
   }
+}
+
+async function loadVerificationStore() {
+  try {
+    const stored = JSON.parse(await readFile(verificationPath, "utf8"));
+    return { version: 1, records: stored.records ?? {} };
+  } catch {
+    return { version: 1, records: {} };
+  }
+}
+
+async function saveVerificationStore() {
+  const snapshot = JSON.stringify(verificationStore, null, 2);
+  const tempPath = `${verificationPath}.${process.pid}.${Date.now()}.tmp`;
+  verificationSave = verificationSave.then(async () => {
+    await mkdir(path.dirname(verificationPath), { recursive: true });
+    await writeFile(tempPath, snapshot);
+    await rename(tempPath, verificationPath);
+  });
+  return verificationSave;
 }
 
 function cleanId(value) {
@@ -179,6 +205,93 @@ async function applyForkMainMerges(target, participant, mrs) {
   return mrs;
 }
 
+function verificationKey(participant, mr) {
+  return `${participant.forkRepo}#${mr.ticket?.key ?? "unknown"}#${mr.headSha ?? "no-sha"}`;
+}
+
+function applyVerificationState(participant, mrs) {
+  for (const mr of mrs) {
+    if (!mr.ticket || !mr.headSha) continue;
+    const record = verificationStore.records[verificationKey(participant, mr)];
+    mr.agentVerification = record ?? null;
+    mr.agentVerified = Boolean(record?.status === "complete" && record.verified);
+  }
+}
+
+function queueAgentVerifications(config, participant, mrs) {
+  if (!config.agentVerification?.enabled || !config.baseRepo || participant.mrs) return;
+  for (const mr of mrs) {
+    if (!mr.ticket || !mr.headSha || !Number.isFinite(Number(mr.id))) continue;
+    const key = verificationKey(participant, mr);
+    const record = verificationStore.records[key];
+    if (record?.status === "complete" || queuedVerificationKeys.has(key)) continue;
+    queuedVerificationKeys.add(key);
+    verificationQueue.push({ key, config, participant, mr });
+  }
+  void pumpAgentVerifications(config);
+}
+
+async function runAgentVerification({ key, config, participant, mr }) {
+  const files = await githubList(`/repos/${config.baseRepo}/pulls/${mr.id}/files`);
+  const patch = files
+    .map((file) => `--- ${file.filename}\n${file.patch ?? "(binary or oversized patch omitted)"}`)
+    .join("\n\n")
+    .slice(0, 50000);
+  const prompt = `You are a read-only workshop code verifier. Do not modify files and do not run commands. Review one participant MR against the matching ticket in workshop/TICKETS.md. Decide whether the patch appears to satisfy the ticket's Done checks without unrelated regressions.\n\nParticipant: ${participant.name}\nFork: ${participant.forkRepo}\nTicket: ${mr.ticket.key}\nMR title: ${mr.title}\nBranch: ${mr.branch}\nHead SHA: ${mr.headSha}\n\nPatch:\n${patch}\n\nReply with exactly two lines:\nAGENT_VERIFIED: yes or no\nREASON: one concise sentence`;
+  const child = spawn("codex", ["exec", "--approve-for-me", "-C", repoRoot, prompt], {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  child.stdout.on("data", (chunk) => { output += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { output += chunk.toString(); });
+  const exitCode = await new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
+  const verified = /^AGENT_VERIFIED:\s*yes\s*$/im.test(output);
+  const reasons = [...output.matchAll(/^REASON:\s*(.+)$/gim)];
+  const reason = reasons.at(-1)?.[1]?.trim() ?? (exitCode === 0 ? "Verifier returned no reason." : `Verifier exited ${exitCode}.`);
+  verificationStore.records[key] = {
+    status: exitCode === 0 ? "complete" : "error",
+    verified: exitCode === 0 && verified,
+    reason,
+    checkedAt: new Date().toISOString(),
+    participant: participant.name,
+    forkRepo: participant.forkRepo,
+    ticket: mr.ticket.key,
+    mrId: mr.id,
+    headSha: mr.headSha,
+  };
+  await saveVerificationStore();
+}
+
+async function pumpAgentVerifications(config) {
+  const limit = config.agentVerification?.maxConcurrent ?? 1;
+  while (activeVerifications < limit && verificationQueue.length) {
+    const job = verificationQueue.shift();
+    activeVerifications += 1;
+    runAgentVerification(job)
+      .catch(async (error) => {
+        verificationStore.records[job.key] = {
+          status: "error",
+          verified: false,
+          reason: error.message,
+          checkedAt: new Date().toISOString(),
+          participant: job.participant.name,
+          forkRepo: job.participant.forkRepo,
+          ticket: job.mr.ticket?.key,
+          mrId: job.mr.id,
+          headSha: job.mr.headSha,
+        };
+        await saveVerificationStore();
+      })
+      .finally(() => {
+        activeVerifications -= 1;
+        queuedVerificationKeys.delete(job.key);
+        void pumpAgentVerifications(config);
+      });
+  }
+}
+
 async function ensureDependencies(config, target) {
   if (await exists(path.join(target, "node_modules"))) return;
   if (config.reuseDependenciesFrom) {
@@ -227,6 +340,8 @@ async function syncParticipant(config, participant) {
   try {
     const [{ target, sha }, mrs] = await Promise.all([ensureClone(participant), fetchMrs(config, participant)]);
     await applyForkMainMerges(target, participant, mrs);
+    applyVerificationState(participant, mrs);
+    queueAgentVerifications(config, participant, mrs);
     item.localPath = target;
     item.sha = sha;
     item.mrs = mrs;
@@ -277,7 +392,7 @@ h1{font-size:44px;letter-spacing:-.05em;margin:8px 0}.eyebrow{color:#a91f25;font
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}.card,table{background:#fff;border:1px solid #e3dfd6;border-radius:12px}.card{padding:18px}.value{font-size:30px;font-weight:800}
 table{width:100%;min-width:1220px;border-collapse:collapse;overflow:hidden}th,td{text-align:left;padding:15px;border-bottom:1px solid #eeeae2;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:#68747b;letter-spacing:.08em}
 .score-cell,.instance-cell,.sync-cell{white-space:nowrap}.score-cell{min-width:86px}.instance-cell{min-width:112px}.sync-cell{min-width:72px}
-.name{font-weight:800}.tag{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px;border-radius:999px;background:#eef1f3;font-size:12px;margin:2px}.merged{background:#e6f4ea;color:#247238}.open,.draft{background:#fff1df;color:#9a5b00}.closed{background:#f3e8e8;color:#8f3131}.ai-mark{border-left:1px solid currentColor;padding-left:5px;color:#6b3fa0;font-weight:800;font-size:10px;letter-spacing:.04em}.error{color:#a91f25}.small{font-size:12px}
+.name{font-weight:800}.tag{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px;border-radius:999px;background:#eef1f3;font-size:12px;margin:2px}.merged{background:#e6f4ea;color:#247238}.open,.draft{background:#fff1df;color:#9a5b00}.closed{background:#f3e8e8;color:#8f3131}.ai-mark{border-left:1px solid currentColor;padding-left:5px;color:#6b3fa0;font-weight:800;font-size:10px;letter-spacing:.04em}.verified-mark{font-weight:900;color:#247238}.error{color:#a91f25}.small{font-size:12px}
 @media(max-width:760px){.top{display:block}.cards{grid-template-columns:1fr}table,tbody,tr,td{display:block}thead{display:none}td{border:0;padding:8px 15px}tr{border-bottom:1px solid #eeeae2;display:block;padding:8px 0}}
 </style></head><body><main>
 <div class="top"><div><div class="eyebrow">Facilitator view</div><h1>CivicVoice workshop board</h1><p class="muted">Fork sync, MR progress, and local participant instances.</p></div><button class="button" onclick="refreshNow()">Refresh now</button></div>
@@ -286,7 +401,7 @@ table{width:100%;min-width:1220px;border-collapse:collapse;overflow:hidden}th,td
 <table><colgroup><col style="width:6%"><col style="width:17%"><col style="width:15%"><col style="width:20%"><col style="width:14%"><col style="width:12%"><col style="width:7%"><col style="width:6%"><col style="width:5%"></colgroup><thead><tr><th>Rank</th><th>Participant</th><th>S · 1 pt</th><th>M · 2 pts</th><th>L · 3 pts</th><th>In progress</th><th>Score</th><th>Instance</th><th>Race state</th></tr></thead><tbody id="rows"></tbody></table>
 </main><script>
 function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;const mark=typeof x==="object"&&x.openAI?'<span class="ai-mark">✦ AI</span>':"";return '<span class="tag '+status+'">'+esc(label)+mark+'</span>'}).join("")||"—"}
+function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;const mark=typeof x==="object"&&x.openAI?'<span class="ai-mark">✦ AI</span>':"";const verified=typeof x==="object"&&x.agentVerified?'<span class="verified-mark" title="Agent verified">✓</span>':"";return '<span class="tag '+status+'">'+esc(label)+mark+verified+'</span>'}).join("")||"—"}
 async function load(){const s=await fetch("/api/state").then(r=>r.json());let points=0,progress=0;document.getElementById("participants").textContent=s.participants.length;
 const ranked=[...s.participants].sort((a,b)=>(b.summary?.points||0)-(a.summary?.points||0)||(b.summary?.counts?.merged||0)-(a.summary?.counts?.merged||0)||a.name.localeCompare(b.name));
 document.getElementById("rows").innerHTML=ranked.map((p,i)=>{points+=p.summary?.points||0;progress+=(p.summary?.counts?.open||0)+(p.summary?.counts?.draft||0);const app=p.instanceRunning?'<a class="button small" target="_blank" href="'+esc(p.appUrl)+'">Open app</a>':'—';const detail=p.strategy?'<div class="muted small">'+esc(p.strategy)+(p.assignedCount?' · '+esc(p.assignedCount)+' tickets':'')+'</div>':"";const race=p.raceStatus||p.error||p.status;return '<tr><td><div class="name">#'+(i+1)+'</div></td><td><div class="name">'+esc(p.name)+'</div>'+detail+'<div class="muted small"><code>'+esc(p.sha||"—")+'</code></div></td><td>'+tags(p.summary?.completedBySize?.S,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.M,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.L,"merged")+'</td><td>'+tags(p.summary?.inProgressDetails,"open")+'</td><td class="score-cell"><div class="name">'+esc(p.summary?.points||0)+' pts</div></td><td class="instance-cell">'+app+'</td><td class="sync-cell '+(p.error||p.raceStatus==="blocked"?"error":"")+'">'+esc(race)+'</td></tr>'}).join("");
