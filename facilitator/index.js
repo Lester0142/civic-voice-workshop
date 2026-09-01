@@ -178,14 +178,24 @@ async function fetchMrs(config, participant) {
     });
   }
   if (!config.baseRepo || !participant.forkRepo) return [];
-  const pulls = config.pullCache ?? await githubList(`/repos/${config.baseRepo}/pulls?state=all`);
-  return pulls
+  const basePulls = (config.pullCache ?? await githubList(`/repos/${config.baseRepo}/pulls?state=all`))
     .filter((pull) => pull.head?.repo?.full_name === participant.forkRepo)
-    .map((pull) => {
+    .map((pull) => ({ pull, sourceRepo: config.baseRepo }));
+  const forkPulls = config.readForkPulls
+    ? (config.forkPullCache?.get(participant.forkRepo) ?? await githubList(`/repos/${participant.forkRepo}/pulls?state=all`))
+      .map((pull) => ({ pull, sourceRepo: participant.forkRepo }))
+    : [];
+  const uniquePulls = [...forkPulls, ...basePulls].filter((entry, index, all) => {
+    const key = entry.pull.head?.sha ?? entry.pull.html_url ?? `${entry.sourceRepo}#${entry.pull.number}`;
+    return all.findIndex((candidate) => (candidate.pull.head?.sha ?? candidate.pull.html_url ?? `${candidate.sourceRepo}#${candidate.pull.number}`) === key) === index;
+  });
+  return uniquePulls
+    .map(({ pull, sourceRepo }) => {
       const normalized = normalizeMr(pull);
       normalized.points = normalized.ticket ? ticketMeta[normalized.ticket.key]?.points ?? 1 : 0;
       normalized.size = normalized.ticket ? ticketMeta[normalized.ticket.key]?.size ?? "S" : null;
       normalized.openAI = normalized.ticket ? Boolean(ticketMeta[normalized.ticket.key]?.openAI) : false;
+      normalized.sourceRepo = sourceRepo;
       return normalized;
     });
 }
@@ -219,9 +229,9 @@ function applyVerificationState(participant, mrs) {
 }
 
 function queueAgentVerifications(config, participant, mrs) {
-  if (!config.agentVerification?.enabled || !config.baseRepo || participant.mrs) return;
+  if (!config.agentVerification?.enabled || participant.mrs) return;
   for (const mr of mrs) {
-    if (!mr.ticket || !mr.headSha || !Number.isFinite(Number(mr.id))) continue;
+    if (!mr.ticket || !mr.headSha || !mr.sourceRepo || !Number.isFinite(Number(mr.id))) continue;
     const key = verificationKey(participant, mr);
     const record = verificationStore.records[key];
     if (record?.status === "complete" || queuedVerificationKeys.has(key)) continue;
@@ -232,12 +242,12 @@ function queueAgentVerifications(config, participant, mrs) {
 }
 
 async function runAgentVerification({ key, config, participant, mr }) {
-  const files = await githubList(`/repos/${config.baseRepo}/pulls/${mr.id}/files`);
+  const files = await githubList(`/repos/${mr.sourceRepo}/pulls/${mr.id}/files`);
   const patch = files
     .map((file) => `--- ${file.filename}\n${file.patch ?? "(binary or oversized patch omitted)"}`)
     .join("\n\n")
     .slice(0, 50000);
-  const prompt = `You are a read-only workshop code verifier. Do not modify files and do not run commands. Review one participant MR against the matching ticket in workshop/TICKETS.md. Decide whether the patch appears to satisfy the ticket's Done checks without unrelated regressions.\n\nParticipant: ${participant.name}\nFork: ${participant.forkRepo}\nTicket: ${mr.ticket.key}\nMR title: ${mr.title}\nBranch: ${mr.branch}\nHead SHA: ${mr.headSha}\n\nPatch:\n${patch}\n\nReply with exactly two lines:\nAGENT_VERIFIED: yes or no\nREASON: one concise sentence`;
+  const prompt = `You are a read-only workshop code verifier. Do not modify files and do not run commands. Review one participant MR against the matching ticket in workshop/TICKETS.md. Decide whether the patch appears to satisfy the ticket's Done checks without unrelated regressions.\n\nParticipant: ${participant.name}\nFork: ${participant.forkRepo}\nMR repository: ${mr.sourceRepo}\nTicket: ${mr.ticket.key}\nMR title: ${mr.title}\nBranch: ${mr.branch}\nHead SHA: ${mr.headSha}\n\nPatch:\n${patch}\n\nReply with exactly two lines:\nAGENT_VERIFIED: yes or no\nREASON: one concise sentence`;
   const child = spawn("codex", ["exec", "--approve-for-me", "-C", repoRoot, prompt], {
     cwd: repoRoot,
     env: process.env,
@@ -369,7 +379,13 @@ async function refresh(config) {
   const pullCache = loadedConfig.baseRepo && participants.some((participant) => !participant.mrs)
     ? await githubList(`/repos/${loadedConfig.baseRepo}/pulls?state=all`)
     : null;
-  const liveConfig = { ...loadedConfig, participants, pullCache };
+  const forkPullCache = new Map();
+  if (loadedConfig.readForkPulls) {
+    await Promise.all(participants.filter((participant) => !participant.mrs && participant.forkRepo).map(async (participant) => {
+      forkPullCache.set(participant.forkRepo, await githubList(`/repos/${participant.forkRepo}/pulls?state=all`));
+    }));
+  }
+  const liveConfig = { ...loadedConfig, participants, pullCache, forkPullCache };
   if (liveConfig.simulation?.enabled) state.simulationTick += 1;
   state.participants = await Promise.all(liveConfig.participants.map((participant) => syncParticipant(liveConfig, participant)));
   state.lastRefresh = new Date().toISOString();

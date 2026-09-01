@@ -17,7 +17,9 @@ To discover every real GitHub fork automatically instead of maintaining a partic
 FACILITATOR_CONFIG=facilitator/github-live.json npm run facilitator
 ```
 
-This mode adds a row for each public fork owner and reads PRs targeting the base repository. It uses your authenticated `gh` CLI when available, then falls back to the public GitHub API. Private participant forks cannot be discovered automatically. Forks are read-only and never launched locally unless you explicitly add a trusted participant configuration.
+This mode adds a row for each public fork owner and reads both PRs targeting the base repository and PRs opened inside each participant fork. It uses your authenticated `gh` CLI when available, then falls back to the public GitHub API. Private participant forks cannot be discovered automatically. Forks are read-only and never launched locally unless you explicitly add a trusted participant configuration.
+
+The live GitHub configuration refreshes once per minute automatically. You do not need to press **Refresh now** or ask Codex to re-check after each merge.
 
 The board recognizes only PR titles that begin `CV-###:`. It treats:
 

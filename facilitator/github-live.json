@@ -1,8 +1,9 @@
 {
   "baseRepo": "ianho-oai/civic-voice-workshop",
   "dashboardPort": 4200,
-  "pollSeconds": 20,
+  "pollSeconds": 60,
   "discoverForks": true,
+  "readForkPulls": true,
   "agentVerification": {
     "enabled": true,
     "maxConcurrent": 1
