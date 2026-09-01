@@ -50,6 +50,7 @@ export function summarizeMrs(mrs = [], ticketPoints = {}) {
         points: mr.points ?? ticketPoints[mr.ticket.key] ?? 1,
         openAI: Boolean(mr.openAI),
         agentVerified: Boolean(mr.agentVerified),
+        agentVerificationPending: Boolean(mr.agentVerificationPending),
       });
     }
   }
@@ -63,7 +64,7 @@ export function summarizeMrs(mrs = [], ticketPoints = {}) {
     inProgress: valid.filter((mr) => mr.status === "open" || mr.status === "draft").map((mr) => mr.ticket.key),
     inProgressDetails: valid
       .filter((mr) => mr.status === "open" || mr.status === "draft")
-      .map((mr) => ({ key: mr.ticket.key, points: mr.points ?? ticketPoints[mr.ticket.key] ?? 1, openAI: Boolean(mr.openAI), agentVerified: Boolean(mr.agentVerified) })),
+      .map((mr) => ({ key: mr.ticket.key, points: mr.points ?? ticketPoints[mr.ticket.key] ?? 1, openAI: Boolean(mr.openAI), agentVerified: Boolean(mr.agentVerified), agentVerificationPending: Boolean(mr.agentVerificationPending) })),
     points,
   };
 }

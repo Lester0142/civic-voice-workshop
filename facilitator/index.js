@@ -222,9 +222,11 @@ function verificationKey(participant, mr) {
 function applyVerificationState(participant, mrs) {
   for (const mr of mrs) {
     if (!mr.ticket || !mr.headSha) continue;
-    const record = verificationStore.records[verificationKey(participant, mr)];
+    const key = verificationKey(participant, mr);
+    const record = verificationStore.records[key];
     mr.agentVerification = record ?? null;
     mr.agentVerified = Boolean(record?.status === "complete" && record.verified);
+    mr.agentVerificationPending = queuedVerificationKeys.has(key);
   }
 }
 
@@ -352,6 +354,7 @@ async function syncParticipant(config, participant) {
     await applyForkMainMerges(target, participant, mrs);
     applyVerificationState(participant, mrs);
     queueAgentVerifications(config, participant, mrs);
+    applyVerificationState(participant, mrs);
     item.localPath = target;
     item.sha = sha;
     item.mrs = mrs;
@@ -408,7 +411,7 @@ h1{font-size:44px;letter-spacing:-.05em;margin:8px 0}.eyebrow{color:#a91f25;font
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}.card,table{background:#fff;border:1px solid #e3dfd6;border-radius:12px}.card{padding:18px}.value{font-size:30px;font-weight:800}
 table{width:100%;min-width:1220px;border-collapse:collapse;overflow:hidden}th,td{text-align:left;padding:15px;border-bottom:1px solid #eeeae2;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:#68747b;letter-spacing:.08em}
 .score-cell,.instance-cell,.sync-cell{white-space:nowrap}.score-cell{min-width:86px}.instance-cell{min-width:112px}.sync-cell{min-width:72px}
-.name{font-weight:800}.tag{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px;border-radius:999px;background:#eef1f3;font-size:12px;margin:2px}.merged{background:#e6f4ea;color:#247238}.open,.draft{background:#fff1df;color:#9a5b00}.closed{background:#f3e8e8;color:#8f3131}.ai-mark{border-left:1px solid currentColor;padding-left:5px;color:#6b3fa0;font-weight:800;font-size:10px;letter-spacing:.04em}.verified-mark{font-weight:900;color:#247238}.error{color:#a91f25}.small{font-size:12px}
+.name{font-weight:800}.tag{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px;border-radius:999px;background:#eef1f3;font-size:12px;margin:2px}.merged{background:#e6f4ea;color:#247238}.open,.draft{background:#fff1df;color:#9a5b00}.closed{background:#f3e8e8;color:#8f3131}.ai-mark{border-left:1px solid currentColor;padding-left:5px;color:#6b3fa0;font-weight:800;font-size:10px;letter-spacing:.04em}.verified-mark{font-weight:900;color:#247238}.verify-loading{display:inline-block;color:#9a5b00;font-weight:900;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.error{color:#a91f25}.small{font-size:12px}
 @media(max-width:760px){.top{display:block}.cards{grid-template-columns:1fr}table,tbody,tr,td{display:block}thead{display:none}td{border:0;padding:8px 15px}tr{border-bottom:1px solid #eeeae2;display:block;padding:8px 0}}
 </style></head><body><main>
 <div class="top"><div><div class="eyebrow">Facilitator view</div><h1>CivicVoice workshop board</h1><p class="muted">Fork sync, MR progress, and local participant instances.</p></div><button class="button" onclick="refreshNow()">Refresh now</button></div>
@@ -417,7 +420,7 @@ table{width:100%;min-width:1220px;border-collapse:collapse;overflow:hidden}th,td
 <table><colgroup><col style="width:6%"><col style="width:17%"><col style="width:15%"><col style="width:20%"><col style="width:14%"><col style="width:12%"><col style="width:7%"><col style="width:6%"><col style="width:5%"></colgroup><thead><tr><th>Rank</th><th>Participant</th><th>S · 1 pt</th><th>M · 2 pts</th><th>L · 3 pts</th><th>In progress</th><th>Score</th><th>Instance</th><th>Race state</th></tr></thead><tbody id="rows"></tbody></table>
 </main><script>
 function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;const mark=typeof x==="object"&&x.openAI?'<span class="ai-mark">✦ AI</span>':"";const verified=typeof x==="object"&&x.agentVerified?'<span class="verified-mark" title="Agent verified">✓</span>':"";return '<span class="tag '+status+'">'+esc(label)+mark+verified+'</span>'}).join("")||"—"}
+function tags(items,status){return (items||[]).map(x=>{const label=typeof x==="string"?x:x.key+" · "+x.points;const mark=typeof x==="object"&&x.openAI?'<span class="ai-mark">✦ AI</span>':"";const verified=typeof x==="object"&&x.agentVerified?'<span class="verified-mark" title="Agent verified">✓</span>':"";const loading=typeof x==="object"&&x.agentVerificationPending?'<span class="verify-loading" title="Agent verification in progress">◌</span>':"";return '<span class="tag '+status+'">'+esc(label)+mark+loading+verified+'</span>'}).join("")||"—"}
 async function load(){const s=await fetch("/api/state").then(r=>r.json());let points=0,progress=0;document.getElementById("participants").textContent=s.participants.length;
 const ranked=[...s.participants].sort((a,b)=>(b.summary?.points||0)-(a.summary?.points||0)||(b.summary?.counts?.merged||0)-(a.summary?.counts?.merged||0)||a.name.localeCompare(b.name));
 document.getElementById("rows").innerHTML=ranked.map((p,i)=>{points+=p.summary?.points||0;progress+=(p.summary?.counts?.open||0)+(p.summary?.counts?.draft||0);const app=p.instanceRunning?'<a class="button small" target="_blank" href="'+esc(p.appUrl)+'">Open app</a>':'—';const detail=p.strategy?'<div class="muted small">'+esc(p.strategy)+(p.assignedCount?' · '+esc(p.assignedCount)+' tickets':'')+'</div>':"";const race=p.raceStatus||p.error||p.status;return '<tr><td><div class="name">#'+(i+1)+'</div></td><td><div class="name">'+esc(p.name)+'</div>'+detail+'<div class="muted small"><code>'+esc(p.sha||"—")+'</code></div></td><td>'+tags(p.summary?.completedBySize?.S,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.M,"merged")+'</td><td>'+tags(p.summary?.completedBySize?.L,"merged")+'</td><td>'+tags(p.summary?.inProgressDetails,"open")+'</td><td class="score-cell"><div class="name">'+esc(p.summary?.points||0)+' pts</div></td><td class="instance-cell">'+app+'</td><td class="sync-cell '+(p.error||p.raceStatus==="blocked"?"error":"")+'">'+esc(race)+'</td></tr>'}).join("");
