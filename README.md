@@ -23,6 +23,18 @@ node --version
 
 If it does not start with `v20` or higher, update Node before continuing.
 
+On macOS, the quickest setup is Homebrew:
+
+```bash
+brew install git node gh
+git --version
+node --version
+npm --version
+gh --version
+```
+
+`gh` is optional but useful for creating and checking pull requests from the terminal. If Homebrew says Node is already installed but `node --version` is still older than v20, run `brew upgrade node`, open a new terminal, and check again.
+
 ### 2. Fork and clone your own copy
 
 1. Open [github.com/ianho-oai/civic-voice-workshop](https://github.com/ianho-oai/civic-voice-workshop).

@@ -6,6 +6,18 @@ Each participant works from their own **public** fork. Keep one ticket per branc
 
 Fork [github.com/ianho-oai/civic-voice-workshop](https://github.com/ianho-oai/civic-voice-workshop) into your own GitHub account, keep the fork public, then clone and start it:
 
+On macOS, install the prerequisites with Homebrew first if needed:
+
+```bash
+brew install git node gh
+git --version
+node --version
+npm --version
+gh --version
+```
+
+Then clone and start your fork:
+
 ```bash
 git clone https://github.com/<your-github-name>/civic-voice-workshop.git
 cd civic-voice-workshop
