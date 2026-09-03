@@ -32,6 +32,15 @@ export async function createApp(options = {}) {
     return res.json({ feedback: db.data.feedback });
   });
 
+  app.get("/api/feedback/:id", (req, res) => {
+    if (req.header("x-user-role") !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+    const feedback = db.data.feedback.find((item) => item.id === req.params.id);
+    if (!feedback) return res.status(404).json({ error: "Feedback not found." });
+    return res.json({ feedback });
+  });
+
   app.post("/api/feedback", async (req, res) => {
     const { nric, name, message } = req.body ?? {};
     if (!message) return res.status(400).json({ error: "Please enter feedback." });

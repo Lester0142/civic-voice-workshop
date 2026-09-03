@@ -19,3 +19,6 @@ export function submitFeedback(feedback) {
 export function getFeedback(user) {
   return api("/api/feedback", { headers: { "x-user-role": user.role } });
 }
+export function getFeedbackDetail(user, id) {
+  return api(`/api/feedback/${encodeURIComponent(id)}`, { headers: { "x-user-role": user.role } });
+}

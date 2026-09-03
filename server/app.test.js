@@ -42,4 +42,32 @@ describe("CivicVoice baseline API", () => {
     const response = await request(app).get("/api/feedback");
     expect(response.status).toBe(403);
   });
+
+  it("returns all stored fields for one feedback item to an admin", async () => {
+    const app = await testApp();
+    const response = await request(app)
+      .get("/api/feedback/fb-seed-1")
+      .set("x-user-role", "admin");
+
+    expect(response.status).toBe(200);
+    expect(response.body.feedback).toMatchObject({
+      id: "fb-seed-1",
+      nric: "S0000001A",
+      name: "Aisha Rahman",
+      category: "General",
+      status: "New",
+    });
+    expect(response.body.feedback.message).toContain("sheltered walkway");
+  });
+
+  it("does not expose individual feedback to non-admins or for unknown ids", async () => {
+    const app = await testApp();
+    const forbidden = await request(app).get("/api/feedback/fb-seed-1");
+    const missing = await request(app)
+      .get("/api/feedback/not-a-feedback-id")
+      .set("x-user-role", "admin");
+
+    expect(forbidden.status).toBe(403);
+    expect(missing.status).toBe(404);
+  });
 });
