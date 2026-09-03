@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { submitFeedback } from "../api";
+import { isBlankFeedback } from "../lib/feedback";
 
 export function CitizenPage({ user }) {
   const [message, setMessage] = useState("");
@@ -9,6 +10,10 @@ export function CitizenPage({ user }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    if (isBlankFeedback(message)) {
+      setError("Please enter feedback.");
+      return;
+    }
     try {
       await submitFeedback({ nric: user.nric, name: user.name, message });
       setSubmitted(true);
