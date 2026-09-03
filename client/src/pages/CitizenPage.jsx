@@ -3,15 +3,15 @@ import { submitFeedback } from "../api";
 
 export function CitizenPage({ user }) {
   const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [reference, setReference] = useState("");
   const [error, setError] = useState("");
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     try {
-      await submitFeedback({ nric: user.nric, name: user.name, message });
-      setSubmitted(true);
+      const response = await submitFeedback({ nric: user.nric, name: user.name, message });
+      setReference(response.feedback.reference);
       setMessage("");
     } catch (requestError) {
       setError(requestError.message);
@@ -26,7 +26,7 @@ export function CitizenPage({ user }) {
         <p>Tell us about an issue, an idea, or a positive experience in your community.</p>
       </div>
       <section className="form-card">
-        {submitted && <div className="success-banner">Thank you. Your feedback has been received.</div>}
+        {reference && <div className="success-banner">Thank you. Your feedback has been received. Your reference is {reference}.</div>}
         <form onSubmit={handleSubmit}>
           <label>Your feedback
             <textarea rows="7" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Share your feedback here..." />
