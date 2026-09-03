@@ -3,6 +3,7 @@
 body { margin: 0; min-width: 320px; }
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #1d6fb8; outline-offset: 3px; }
 .site-header { height: 76px; display: flex; align-items: center; justify-content: space-between; padding: 0 5vw; border-bottom: 1px solid #e2dfd7; background: rgba(255,255,255,.88); }
 .brand { display: flex; align-items: center; gap: 10px; color: #17222b; text-decoration: none; font-weight: 700; }
 .brand-mark { width: 29px; height: 29px; display: grid; place-items: center; background: #b2252a; color: #fff; border-radius: 8px; font-family: Fraunces, serif; }
@@ -35,6 +36,7 @@ textarea { resize: vertical; line-height: 1.6; }
 .primary-button:disabled { opacity: .65; cursor: wait; }
 .login-card .primary-button { width: 100%; margin-top: 8px; }
 .error-message { color: #b2252a; font-size: 14px; }
+.error-message:focus, .success-banner:focus { outline: 3px solid #1d6fb8; outline-offset: 3px; }
 .demo-help { margin-top: 24px; color: #69747b; font-size: 13px; }
 .demo-help summary { cursor: pointer; font-weight: 600; }
 .demo-help p { margin: 7px 0; }
