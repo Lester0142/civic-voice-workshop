@@ -1,13 +1,27 @@
 import { useEffect, useState } from "react";
-import { getFeedback } from "../api";
+import { getFeedback, updateFeedbackStatus } from "../api";
 
 export function AdminPage({ user }) {
   const [feedback, setFeedback] = useState([]);
   const [error, setError] = useState("");
+  const [updatingId, setUpdatingId] = useState("");
 
   useEffect(() => {
     getFeedback(user).then((response) => setFeedback(response.feedback)).catch((requestError) => setError(requestError.message));
   }, [user]);
+
+  async function changeStatus(id, status) {
+    setError("");
+    setUpdatingId(id);
+    try {
+      const response = await updateFeedbackStatus(user, id, status);
+      setFeedback((items) => items.map((item) => (item.id === id ? response.feedback : item)));
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setUpdatingId("");
+    }
+  }
 
   return (
     <main className="page-shell admin-shell">
@@ -25,7 +39,18 @@ export function AdminPage({ user }) {
               <div className="feedback-meta">{item.name} · {new Date(item.createdAt).toLocaleDateString()}</div>
               <p>{item.message}</p>
             </div>
-            <span className="status-pill">{item.status}</span>
+            <label className="status-control">
+              <span className="sr-only">Status for feedback from {item.name}</span>
+              <select
+                value={item.status}
+                disabled={updatingId === item.id}
+                onChange={(event) => changeStatus(item.id, event.target.value)}
+              >
+                <option>New</option>
+                <option>In review</option>
+                <option>Closed</option>
+              </select>
+            </label>
           </article>
         ))}
       </section>

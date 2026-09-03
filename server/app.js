@@ -44,5 +44,24 @@ export async function createApp(options = {}) {
     return res.status(201).json({ feedback });
   });
 
+  app.patch("/api/feedback/:id/status", async (req, res) => {
+    if (req.header("x-user-role") !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const statuses = ["New", "In review", "Closed"];
+    const { status } = req.body ?? {};
+    if (!statuses.includes(status)) {
+      return res.status(400).json({ error: "Status must be New, In review, or Closed." });
+    }
+
+    const feedback = db.data.feedback.find((item) => item.id === req.params.id);
+    if (!feedback) return res.status(404).json({ error: "Feedback not found." });
+
+    feedback.status = status;
+    await db.write();
+    return res.json({ feedback });
+  });
+
   return app;
 }

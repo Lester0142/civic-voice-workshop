@@ -19,3 +19,10 @@ export function submitFeedback(feedback) {
 export function getFeedback(user) {
   return api("/api/feedback", { headers: { "x-user-role": user.role } });
 }
+export function updateFeedbackStatus(user, id, status) {
+  return api(`/api/feedback/${id}/status`, {
+    method: "PATCH",
+    headers: { "x-user-role": user.role },
+    body: JSON.stringify({ status }),
+  });
+}
