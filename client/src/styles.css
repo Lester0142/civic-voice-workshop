@@ -44,10 +44,19 @@ textarea { resize: vertical; line-height: 1.6; }
 .page-heading p { color: #69747b; line-height: 1.6; }
 .form-card, .feedback-list { background: white; border: 1px solid #e2dfd7; border-radius: 14px; padding: 28px; box-shadow: 0 8px 30px rgba(28,36,42,.04); }
 .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 20px; font-size: 13px; }
+.character-count { color: #38434a; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
 .success-banner { background: #e8f4ec; color: #26703b; border-radius: 8px; padding: 13px 15px; margin-bottom: 20px; font-size: 14px; }
+.success-panel { display: grid; justify-items: start; gap: 4px; }
+.success-panel .muted { margin: 0 0 16px; }
 .admin-shell { max-width: 1050px; }
+.inbox-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
+.summary-card { min-width: 0; background: white; border: 1px solid #e2dfd7; border-radius: 12px; padding: 18px; box-shadow: 0 8px 30px rgba(28,36,42,.04); }
+.summary-label { display: block; color: #69747b; font-size: 13px; font-weight: 600; line-height: 1.35; }
+.summary-count { display: block; margin-top: 7px; color: #17222b; font-family: Fraunces, Georgia, serif; font-size: clamp(30px, 4vw, 40px); line-height: 1; }
 .list-header { display: flex; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid #eceae4; }
 .list-header span { color: #69747b; font-size: 14px; }
+.search-field { margin: 20px 0; }
+.empty-state { margin: 24px 0 0; color: #69747b; line-height: 1.55; }
 .feedback-row { display: flex; justify-content: space-between; gap: 24px; padding: 20px 0; border-bottom: 1px solid #eceae4; }
 .feedback-row:last-child { border-bottom: 0; padding-bottom: 0; }
 .feedback-row p { margin: 8px 0 0; line-height: 1.55; }
@@ -62,4 +71,6 @@ textarea { resize: vertical; line-height: 1.6; }
   .signed-in { display: none; }
   .form-footer { align-items: stretch; flex-direction: column; }
   .form-footer .primary-button { width: 100%; }
+  .inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .summary-card { padding: 15px; }
 }
