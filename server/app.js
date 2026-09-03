@@ -29,7 +29,10 @@ export async function createApp(options = {}) {
     if (req.header("x-user-role") !== "admin") {
       return res.status(403).json({ error: "Admin access required." });
     }
-    return res.json({ feedback: db.data.feedback });
+    const feedback = [...db.data.feedback].sort(
+      (left, right) => new Date(right.createdAt) - new Date(left.createdAt),
+    );
+    return res.json({ feedback });
   });
 
   app.post("/api/feedback", async (req, res) => {
