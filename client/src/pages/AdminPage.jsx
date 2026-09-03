@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { getFeedback } from "../api";
 
-export function AdminPage({ user }) {
+export function AdminPage({ token }) {
   const [feedback, setFeedback] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getFeedback(user).then((response) => setFeedback(response.feedback)).catch((requestError) => setError(requestError.message));
-  }, [user]);
+    getFeedback(token).then((response) => setFeedback(response.feedback)).catch((requestError) => setError(requestError.message));
+  }, [token]);
 
   return (
     <main className="page-shell admin-shell">
