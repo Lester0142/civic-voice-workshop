@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { submitFeedback } from "../api";
 
+const MAX_FEEDBACK_LENGTH = 500;
+
 export function CitizenPage({ user }) {
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -9,6 +11,10 @@ export function CitizenPage({ user }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    if (message.length > MAX_FEEDBACK_LENGTH) {
+      setError(`Feedback must be ${MAX_FEEDBACK_LENGTH} characters or fewer.`);
+      return;
+    }
     try {
       await submitFeedback({ nric: user.nric, name: user.name, message });
       setSubmitted(true);
@@ -29,10 +35,22 @@ export function CitizenPage({ user }) {
         {submitted && <div className="success-banner">Thank you. Your feedback has been received.</div>}
         <form onSubmit={handleSubmit}>
           <label>Your feedback
-            <textarea rows="7" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Share your feedback here..." />
+            <textarea
+              rows="7"
+              value={message}
+              maxLength={MAX_FEEDBACK_LENGTH}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="Share your feedback here..."
+              aria-describedby="feedback-character-count"
+            />
           </label>
           <div className="form-footer">
-            <span className="muted">Please do not include sensitive personal information.</span>
+            <div>
+              <div id="feedback-character-count" className="character-count">
+                {message.length} / {MAX_FEEDBACK_LENGTH} characters
+              </div>
+              <span className="muted">Please do not include sensitive personal information.</span>
+            </div>
             <button className="primary-button">Submit feedback</button>
           </div>
           {error && <p className="error-message">{error}</p>}
