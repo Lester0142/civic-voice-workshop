@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getFeedback } from "../api";
 import { filterFeedbackByKeyword } from "../lib/feedbackSearch";
 import { getInboxSummary } from "../lib/inboxSummary";
+import { maskNric } from "../lib/maskNric";
 
 export function AdminPage({ user }) {
   const [feedback, setFeedback] = useState([]);
@@ -63,7 +64,9 @@ export function AdminPage({ user }) {
         {visibleFeedback.map((item) => (
           <article className="feedback-row" key={item.id}>
             <div>
-              <div className="feedback-meta">{item.name} · {new Date(item.createdAt).toLocaleDateString()}</div>
+              <div className="feedback-meta">
+                {item.name} · {maskNric(item.nric)} · {new Date(item.createdAt).toLocaleDateString()}
+              </div>
               <p>{item.message}</p>
             </div>
             <span className="status-pill">{item.status}</span>
