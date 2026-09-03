@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { login } from "../api";
+import { isValidWorkshopId, normalizeWorkshopId } from "../lib/workshopId";
 
 export function LoginPage({ onLogin }) {
   const [role, setRole] = useState("citizen");
@@ -10,10 +11,17 @@ export function LoginPage({ onLogin }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setBusy(true);
     setError("");
+    const normalizedNric = normalizeWorkshopId(nric);
+
+    if (!isValidWorkshopId(nric)) {
+      setError("Enter a valid NRIC-like ID, for example S0000001A.");
+      return;
+    }
+
+    setBusy(true);
     try {
-      const session = await login({ nric, password, role });
+      const session = await login({ nric: normalizedNric, password, role });
       onLogin(session);
     } catch (requestError) {
       setError(requestError.message);
