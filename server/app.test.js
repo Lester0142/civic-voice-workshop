@@ -31,10 +31,34 @@ describe("CivicVoice baseline API", () => {
   it("accepts feedback", async () => {
     const app = await testApp();
     const response = await request(app).post("/api/feedback").send({
-      nric: "S0000001A", name: "Aisha Rahman", message: "Please add more benches.",
+      nric: "S0000001A", name: "Aisha Rahman", message: "Please add more benches.", category: "Estate",
     });
     expect(response.status).toBe(201);
     expect(response.body.feedback.message).toBe("Please add more benches.");
+    expect(response.body.feedback.category).toBe("Estate");
+  });
+
+  it("rejects feedback without a supported category", async () => {
+    const app = await testApp();
+    const response = await request(app).post("/api/feedback").send({
+      nric: "S0000001A", name: "Aisha Rahman", message: "Please add more benches.", category: "General",
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatch(/valid feedback category/i);
+  });
+
+  it("persists the selected category for the admin inbox", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "civic-voice-"));
+    const file = path.join(directory, "db.json");
+    const app = await createApp({ db: await createDb(file) });
+    await request(app).post("/api/feedback").send({
+      nric: "S0000001A", name: "Aisha Rahman", message: "Plant more trees.", category: "Environment",
+    }).expect(201);
+
+    const reloadedApp = await createApp({ db: await createDb(file) });
+    const response = await request(reloadedApp).get("/api/feedback").set("x-user-role", "admin");
+    expect(response.status).toBe(200);
+    expect(response.body.feedback[0]).toMatchObject({ message: "Plant more trees.", category: "Environment" });
   });
 
   it("blocks the feedback list without the admin role header", async () => {
